@@ -28,16 +28,16 @@ session = DBSession()
 
 save_path = '/home/sli/tiles'
 coordinates = os.path.join(save_path, "coordinates.txt")
-z = 10
+z = 13
 
 
-def circlePrinter(newImg):
+def circlePrinter(newImg, a, b, r):
     # Draw the circumference of the circle.
     cv2.circle(newImg, (a, b), r, (0, 255, 0), 2)
 
     # Draw a small circle (of radius 1) to show the center.
     cv2.circle(newImg, (a, b), 1, (0, 0, 255), 3)
-    cv2.imshow("Detected Circle" + item, newImg)
+    cv2.imshow("Detected Circle", newImg)
     cv2.waitKey(0)
 
 
@@ -52,25 +52,97 @@ def resizer(resImage):
 
 
 def getTile(cx, cy, cz):
-    for i in range(0, 23):
-        if i < 10:
-            string = '2020-08-01T0' + str(i) + ':00:00.000Z'
-            if i < 9:
-                string1 = '2020-08-01T0' + str(i + 1) + ':00:00.000Z'
+    # for i in range(0, 24):
+    #     if i < 10:
+    #         string = '2020-08-01T0' + str(i) + ':00:00.000Z'
+    #         if i < 9:
+    #             string1 = '2020-08-01T0' + str(i + 1) + ':00:00.000Z'
+    #         else:
+    #             string1 = '2020-08-01T' + str(i + 1) + ':00:00.000Z'
+    #     else:
+    #         string = '2020-08-01T' + str(i) + ':00:00.000Z'
+    #         string1 = '2020-08-01T' + str(i + 1) + ':00:00.000Z'
+
+    string = '2020-08-01T15:00:00.000Z'
+    string1 = '2020-08-01T16:00:00.000Z'
+
+    query = {'x': cx, 'y': cy, 'z': cz, 's': '256', 'from': string,
+             'to': string1}
+    req = requests.get("https://tiles.lightningmaps.org/?", params=query)
+
+    fileName = os.path.join(save_path, 'x' + str(x) + 'y' + str(y) + string + ".png")
+    image = open(fileName, "wb")
+    image.write(req.content)
+    image.close()
+
+    print(fileName)
+    img = cv2.imread(fileName, cv2.IMREAD_COLOR)
+
+    resized = resizer(img)
+
+    # test only
+    # cv2.imshow("Resized image " + fileName, resized)
+    # cv2.waitKey(0)
+    # cv2.destroyWindow("Resized image " + fileName)
+
+    gray = cv2.cvtColor(resized, cv2.COLOR_BGR2GRAY)
+    gray = cv2.medianBlur(gray, 11)
+
+    detected_circles = cv2.HoughCircles(gray, cv2.HOUGH_GRADIENT, 1, 5, param1=30, param2=15, minRadius=0,
+                                        maxRadius=15)
+
+    # Draw circles that are detected.
+    if detected_circles is not None:
+
+        # Convert the circle parameters a, b and r to integers.
+        detected_circles = np.uint16(np.around(detected_circles))
+
+        for pt in detected_circles[0, :]:
+            a, b, r = pt[0], pt[1], pt[2]
+            a = int(round((a * 45.5) / 100, 0))
+            b = int(round((b * 45.5) / 100, 0))
+
+            # test only
+            # circlePrinter(img, a, b, r)
+
+            print('a ' + str(a) + '\t' + 'b ' + str(b) + '\n')
+
+            mercator = GlobalMercator()
+            minx, miny, maxx, maxy = mercator.TileBounds(x, y, z)
+            # print('minx ' + str(minx) + '\t' + 'y ' + str(miny) + '\t' + 'maxx ' + str(maxx) + '\t' + 'maxy ' +
+            # str(maxy) + '\n')
+
+            print('x ' + str(minx) + '\t' + 'y ' + str(miny) + '\n')
+            print('lat' + 'long' + str(mercator.MetersToLatLon(minx, miny)))
+            res = mercator.Resolution(z)
+            lat = abs(miny + b * res)
+            long = abs(minx + a * res)
+            print('x ' + str(long) + '\t' + 'y' + str(lat) + '\n')
+            # print ("resol" + str(res))
+            lat, long = mercator.MetersToLatLon(long, lat)
+
+            print('lat ' + str(lat) + '\t' + 'y ' + str(long) + '\n')
+
+            if os.path.exists(coordinates):
+                append_write = 'a'
             else:
-                string1 = '2020-08-01T' + str(i + 1) + ':00:00.000Z'
-        else:
-            string = '2020-08-01T' + str(i) + ':00:00.000Z'
-            string1 = '2020-08-01T' + str(i + 1) + ':00:00.000Z'
+                append_write = 'w'
 
-        query = {'x': cx, 'y': cy, 'z': cz, 's': '256', 'from': string,
-                 'to': string1}
-        req = requests.get("https://tiles.lightningmaps.org/?", params=query)
+            newString = fileName[-26:]
+            newString = newString[:-4]
 
-        fileName = os.path.join(save_path, 'x' + str(x) + 'y' + str(y) + string + ".png")
-        image = open(fileName, "wb")
-        image.write(req.content)
-        image.close()
+            new_lightning = Lightning(lat=lat, lon=long, time=newString)
+
+            session.add(new_lightning)
+            session.commit()
+
+            file = open(coordinates, append_write)
+            file.write(str(lat) + " " + str(long) + " " + newString + "\n")
+            file.close()
+            del mercator
+            # cv2.destroyWindow("Detected Circle")
+
+    os.remove(fileName)
 
 
 class GlobalMercator(object):
@@ -94,6 +166,15 @@ class GlobalMercator(object):
         lat = 180 / math.pi * (2 * math.atan(math.exp(lat * math.pi / 180.0)) - math.pi / 2.0)
         return lat, lon
 
+    def LatLonToMeters(self, lat, lon):
+        "Converts given lat/lon in WGS84 Datum to XY in Spherical Mercator EPSG:900913"
+
+        mx = lon * self.originShift / 180.0
+        my = math.log(math.tan((90 + lat) * math.pi / 360.0)) / (math.pi / 180.0)
+
+        my = my * self.originShift / 180.0
+        return mx, my
+
     def Resolution(self, zoom):
         """Resolution (meters/pixel) for given zoom level (measured at Equator)"""
 
@@ -107,6 +188,27 @@ class GlobalMercator(object):
         mx = px * res - self.originShift
         my = py * res - self.originShift
         return mx, my
+
+    def PixelsToTile(self, px, py):
+        "Returns a tile covering region in given pixel coordinates"
+
+        tx = int(math.ceil(px / float(self.tileSize)) - 1)
+        ty = int(math.ceil(py / float(self.tileSize)) - 1)
+        return tx, ty
+
+    def MetersToPixels(self, mx, my, zoom):
+        "Converts EPSG:900913 to pyramid pixel coordinates in given zoom level"
+
+        res = self.Resolution(zoom)
+        px = (mx + self.originShift) / res
+        py = (my + self.originShift) / res
+        return px, py
+
+    def MetersToTile(self, mx, my, zoom):
+        "Returns tile for given mercator coordinates"
+
+        px, py = self.MetersToPixels(mx, my, zoom)
+        return self.PixelsToTile(px, py)
 
     def TileBounds(self, tx, ty, zoom):
         """Returns bounds of the given tile in EPSG:900913 coordinates"""
@@ -122,75 +224,10 @@ class GlobalMercator(object):
         return tx, (2 ** zoom - 1) - ty
 
 
-for x in range(549, 559):
-    for y in range(381, 391):
+# mercator = GlobalMercator()
+# x, y = mercator.LatLonToMeters(39.1511345, 16.3158131) #41.6304855, 39.1511345  13.1189575 16.3158131
+# print(mercator.MetersToTile(x, y, 13))
+
+for x in range(4394, 4468):  # 4394, 4468
+    for y in range(3052, 3127):  # 3052, 3127
         getTile(x, y, z)
-
-for item in os.listdir(save_path):
-    if item.endswith(".png"):
-        img = cv2.imread(save_path + '/' + item, cv2.IMREAD_COLOR)
-        resized = resizer(img)
-
-        # test only
-        # cv2.imshow("Resized image " + item, resized)
-        # cv2.waitKey(0)
-        # cv2.destroyWindow("Resized image " + item)
-
-        gray = cv2.cvtColor(resized, cv2.COLOR_BGR2GRAY)
-        gray = cv2.medianBlur(gray, 5)
-
-        detected_circles = cv2.HoughCircles(gray, cv2.HOUGH_GRADIENT, 1, 5, param1=30, param2=15, minRadius=0,
-                                            maxRadius=15)
-
-        # Draw circles that are detected.
-        if detected_circles is not None:
-
-            # Convert the circle parameters a, b and r to integers.
-            detected_circles = np.uint16(np.around(detected_circles))
-
-            for pt in detected_circles[0, :]:
-                a, b, r = pt[0], pt[1], pt[2]
-                a = int(round((a * 45.5) / 100, 0))
-                b = int(round((b * 45.5) / 100, 0))
-
-                # test only
-                #circlePrinter(img)
-
-                print('a ' + str(a) + '\t' + 'b ' + str(b) + '\n')
-
-                mercator = GlobalMercator()
-                minx, miny, maxx, maxy = mercator.TileBounds(x, y, z)
-                # print('minx ' + str(minx) + '\t' + 'y ' + str(miny) + '\t' + 'maxx ' + str(maxx) + '\t' + 'maxy ' +
-                # str(maxy) + '\n')
-
-                print('x ' + str(minx) + '\t' + 'y ' + str(miny) + '\n')
-                print('lat' + 'long' + str(mercator.MetersToLatLon(minx, miny)))
-                res = mercator.Resolution(z)
-                lat = abs(miny + b * res)
-                long = abs(minx + a * res)
-                print('x ' + str(long) + '\t' + 'y' + str(lat) + '\n')
-                # print ("resol" + str(res))
-                lat, long = mercator.MetersToLatLon(long, lat)
-
-                print('lat ' + str(lat) + '\t' + 'y ' + str(long) + '\n')
-
-                if os.path.exists(coordinates):
-                    append_write = 'a'
-                else:
-                    append_write = 'w'
-
-                newString = item[-26:]
-                newString = newString[:-4]
-
-                new_lightning = Lightning(lat=lat, lon=long, time=newString)
-
-                session.add(new_lightning)
-                session.commit()
-
-                file = open(coordinates, append_write)
-                file.write(str(lat) + " " + str(long) + " " + newString + "\n")
-                file.close()
-                del mercator
-                # cv2.destroyWindow("Detected Circle"+item)
-
-        os.remove(save_path + '/' + item)
