@@ -5,6 +5,7 @@ from DBcreate import Lightning, Base
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from netCDF4 import Dataset
+import sys
 
 engine = create_engine('sqlite:///sqlalchemy.db')
 Base.metadata.bind = engine
@@ -14,25 +15,26 @@ DBSession.bind = engine
 session = DBSession()
 
 # light = session.query(Lightning)\
-#     .filter(Lightning.time == '20-08-01T04:00:00.000Z') \
-#     .filter(Lightning.lat.between(41.001666266518185, 41.006146267))\
-#     .filter(Lightning.lon.between(14.931793212890623, 14.937673213))\
+#     .filter(Lightning.time == '20-09-25T07:00:00.000Z') \
+#     .filter(Lightning.lat == '41.54070675583593')\
+#     .filter(Lightning.lon == '13.12419891357423')\
 #     .count()
 #
 # print(light)
+# session.commit()
 
-# 41.001666266518185 14.931793212890623
+if len(sys.argv) < 3:
+    print('usage: DBquery.py YY-MM-DDT00(UTC) inputPath.nc outputPath.nc')
+    exit(1)
 
-# model = Dataset('/home/sli/Downloads/wrf5_d03_20200801Z0400.nc.nc4', "r+", format="NETCDF4")
+date = sys.argv[1]  # YY-MM-DDT00:00
+date = date + ':00:00.000Z'
 
-# lat = model.dimensions['latitude'].size
-# lon = model.dimensions['longitude'].size
-# time = model.dimensions['time'].size
-
-with nc.Dataset('/home/sli/Downloads/wrf5_d03_20200801Z1500.nc.nc4', format="NETCDF4") as src, nc.Dataset('/home/sli/Downloads/Test/test.nc.nc4', 'w', format="NETCDF4") as dst:
-        # copy global attributes all at once via dictionary
+with nc.Dataset(sys.argv[2], format="NETCDF4") as src, nc.Dataset(sys.argv[3],
+                                                                  'w', format="NETCDF4") as dst:
+    # copy global attributes all at once via dictionary
     dst.setncatts(src.__dict__)
-        # copy dimensions
+    # copy dimensions
     for name, dimension in src.dimensions.items():
         dst.createDimension(
             name, (len(dimension) if not dimension.isunlimited() else None))
@@ -44,39 +46,24 @@ with nc.Dataset('/home/sli/Downloads/wrf5_d03_20200801Z1500.nc.nc4', format="NET
         # copy variable attributes all at once via dictionary
         dst[name].setncatts(src[name].__dict__)
 
-        # t = dst.createDimension("T", 1)
-        # lt = dst.createDimension("X", 553)
-        # ln = dst.createDimension("Y", 543)
-        #
-        # times = dst.createVariable("time", "f8", ("time",))
-        # latitudes = dst.createVariable("lat", "f4", ("lat",))
-        # longitudes = dst.createVariable("lon", "f4", ("lon",))
-        #
-        # lightCount = dst.createVariable("lightCount", "i4", ("time", "lat", "lon",))
+model = Dataset(sys.argv[3], "r+", format="NETCDF4")
 
-model = Dataset('/home/sli/Downloads/Test/test.nc.nc4', "r+", format="NETCDF4")
+# model.createDimension('X', 553)
+# model.createDimension('Y', 543)
+# model.createDimension('t', 1)
+#
+# lats = model.createVariable('lat', 'f4', ('X', 'Y'))
+# lats.units = 'degree_north'
+# lats._CoordinateAxisType = 'Lat'
+#
+# lons = model.createVariable('lon', 'f4', ('X', 'Y'))
+# lons.units = 'degree_east'
+# lons._CoordinateAxisType = 'Lon'
 
-model.createDimension('X', 553)
-model.createDimension('Y', 543)
-model.createDimension('t', 1)
-
-lats = model.createVariable('lat', 'f4', ('X', 'Y'))
-lats.units = 'degree_north'
-lats._CoordinateAxisType = 'Lat'
-
-lons = model.createVariable('lon', 'f4', ('X', 'Y'))
-lons.units = 'degree_east'
-lons._CoordinateAxisType = 'Lon'
-
-lightCounter = model.createVariable('light', 'i4', ('t', 'latitude', 'longitude'))
+lightCounter = model.createVariable('light', 'i4', ('time', 'latitude', 'longitude'))
 
 deltaLat = (model['latitude'][1] - model['latitude'][0])
 deltaLon = (model['longitude'][1] - model['longitude'][0])
-
-# print(deltaLat)
-# print(str(model['latitude'][552]) + ' ' + str(model['latitude'][0]))
-# print(str(model['longitude'][542]) + ' ' + str(model['longitude'][0]))
-# print(deltaLon)
 
 lightMat = np.full([len(model['latitude']), len(model['longitude'])], 0, dtype=np.int)
 
@@ -98,25 +85,23 @@ for j in range(0, 553):
         #     .count()
 
         light = session.query(Lightning) \
-            .filter(Lightning.time == '20-08-01T15:00:00.000Z') \
+            .filter(Lightning.time == date) \
             .filter(Lightning.lat.between(minLat, maxLat)) \
             .filter(Lightning.lon.between(minLon, maxLon)) \
             .count()
 
         lightMat[j][i] = light
 
-        print('min' + str(minC[0]) + ' ' + str(minC[1]))
-        print('max' + str(maxC[0]) + ' ' + str(maxC[1]))
-        print(light)
-        #if light != 0: break
+        # if light != 0: break
         del light
 
 lightCounter[0, :, :] = lightMat
-
+count = 0
 for i in range(len(lightMat[:, 0])):
     for j in range(len(lightMat[0, :])):
         if lightMat[i][j] != 0:
-            print(str(i) + ' '+str(j))
-
+            print(str(i) + ' ' + str(j))
+            count += 1
+print(count)
 
 model.close()
