@@ -27,7 +27,7 @@ DBSession = sessionmaker(bind=engine)
 session = DBSession()
 
 
-save_path = '/home/sli/tiles'
+save_path = sys.argv[2]
 coordinates = os.path.join(save_path, "coordinates.txt")
 z = 13
 
@@ -55,7 +55,7 @@ def resizer(resImage):
 # def getTile(cx, cy, cz):
 def getTile(cz, aDate):
     aDate = aDate + 'T'
-    for i in range(13, 24):
+    for i in range(0, 24):
         if i < 10:
             string = aDate + '0' + str(i) + ':00:00.000Z'
             if i < 9:
@@ -249,8 +249,8 @@ class GlobalMercator(object):
 #     for y in range(3052, 3127):  # 3052, 3127
 #         getTile(x, y, z)
 
-if len(sys.argv) < 2:
-    print("usage: main.py YYYY-MM-DD")
+if len(sys.argv) < 3:
+    print("usage: main.py YYYY-MM-DD outputPath")
     exit(1)
 date = sys.argv[1]
 getTile(z, date)

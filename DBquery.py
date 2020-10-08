@@ -61,8 +61,12 @@ for item in os.listdir(sys.argv[1]):
 
         model = Dataset(sys.argv[2] + item, "r+", format="NETCDF4")
 
-        # model.createDimension('X', 553)
-        # model.createDimension('Y', 543)
+        x = model.createVariable('X', 'i4', ('longitude',))
+        y = model.createVariable('Y', 'i4', ('latitude',))
+
+        x[:] = np.arange(0, 543)
+        y[:] = np.arange(0, 553)
+
         # model.createDimension('t', 1)
         #
         # lats = model.createVariable('lat', 'f4', ('X', 'Y'))
