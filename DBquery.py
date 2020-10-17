@@ -84,41 +84,41 @@ for item in os.listdir(sys.argv[1]):
 
         lightMat = np.full([len(model['latitude']), len(model['longitude'])], 0, dtype=np.int)
 
-        for j in range(0, 553):
-            for i in range(0, 543):
-                cLat = (model['latitude'][j])
-                cLon = (model['longitude'][i])
-                center = (cLat, cLon)
-
-                minLon = center[1] - deltaLon / 2
-                minLat = center[0] - deltaLat / 2
-                maxLon = center[1] + deltaLon / 2
-                maxLat = center[0] + deltaLat / 2
-
-                minC = (minLat, minLon)
-                maxC = (maxLat, maxLon)
-
-                # light = session.query(Lightning) \ .filter(Lightning.time == '20-08-01T04:00:00.000Z') \
-                #     .count()
-
-                light = session.query(Lightning) \
-                    .filter(Lightning.time == newDate) \
-                    .filter(Lightning.lat.between(minLat, maxLat)) \
-                    .filter(Lightning.lon.between(minLon, maxLon)) \
-                    .count()
-
-                lightMat[j][i] = light
-
-                # if light != 0: break
-                del light
-
-        lightCounter[0, :, :] = lightMat
-        count = 0
-        for i in range(len(lightMat[:, 0])):
-            for j in range(len(lightMat[0, :])):
-                if lightMat[i][j] != 0:
-                    print(str(i) + ' ' + str(j))
-                    count += 1
-        print(count)
+        # for j in range(0, 553):
+        #     for i in range(0, 543):
+        #         cLat = (model['latitude'][j])
+        #         cLon = (model['longitude'][i])
+        #         center = (cLat, cLon)
+        #
+        #         minLon = center[1] - deltaLon / 2
+        #         minLat = center[0] - deltaLat / 2
+        #         maxLon = center[1] + deltaLon / 2
+        #         maxLat = center[0] + deltaLat / 2
+        #
+        #         minC = (minLat, minLon)
+        #         maxC = (maxLat, maxLon)
+        #
+        #         # light = session.query(Lightning) \ .filter(Lightning.time == '20-08-01T04:00:00.000Z') \
+        #         #     .count()
+        #
+        #         light = session.query(Lightning) \
+        #             .filter(Lightning.time == newDate) \
+        #             .filter(Lightning.lat.between(minLat, maxLat)) \
+        #             .filter(Lightning.lon.between(minLon, maxLon)) \
+        #             .count()
+        #
+        #         lightMat[j][i] = light
+        #
+        #         # if light != 0: break
+        #         del light
+        #
+        # lightCounter[0, :, :] = lightMat
+        # count = 0
+        # for i in range(len(lightMat[:, 0])):
+        #     for j in range(len(lightMat[0, :])):
+        #         if lightMat[i][j] != 0:
+        #             print(str(i) + ' ' + str(j))
+        #             count += 1
+        # print(count)
 
         model.close()

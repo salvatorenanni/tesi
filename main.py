@@ -249,8 +249,8 @@ class GlobalMercator(object):
 #     for y in range(3052, 3127):  # 3052, 3127
 #         getTile(x, y, z)
 
-if len(sys.argv) < 3:
-    print("usage: main.py YYYY-MM-DD outputPath")
+if len(sys.argv) < 2:
+    print("usage: main.py YYYY-MM-DD outputPath/")
     exit(1)
 date = sys.argv[1]
 getTile(z, date)
